@@ -1,5 +1,6 @@
 use serde::Serialize;
 use anyhow::Result;
+use log::debug;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct UserInfo {
@@ -68,8 +69,14 @@ fn parse_passwd_file() -> Result<Vec<UserInfo>> {
             continue;
         }
         
-        // Default shell to /bin/bash if empty or nologin
-        let shell = if shell.is_empty() || shell == "/usr/bin/false" || shell == "/sbin/nologin" || shell == "/bin/false" {
+        // Skip users with nologin shells - they can't SSH anyway
+        if shell == "/usr/sbin/nologin" || shell == "/sbin/nologin" || shell == "/bin/false" || shell == "/usr/bin/false" {
+            debug!("Skipping user {} with nologin shell: {}", username, shell);
+            continue;
+        }
+        
+        // Default shell to /bin/bash if empty 
+        let shell = if shell.is_empty() {
             Some("/bin/bash".to_string())
         } else {
             Some(shell)
@@ -112,9 +119,11 @@ impl<T: Default> UnwrapOrContinue<T> for Result<T, std::num::ParseIntError> {
     }
 }
 
-fn is_user_disabled(shell: &str) -> bool {
-    // User is considered disabled if shell is /usr/bin/false or /sbin/nologin
-    shell == "/usr/bin/false" || shell == "/sbin/nologin" || shell == "/bin/false"
+fn is_user_disabled(_shell: &str) -> bool {
+    // Since we already filter out nologin shells during collection,
+    // the remaining users are generally not disabled
+    // This could be extended to check account locking in shadow file
+    false
 }
 
 #[cfg(test)]
@@ -125,23 +134,34 @@ mod tests {
     fn test_collect_users() {
         let users = collect_users().unwrap();
         
-        // Should have at least root user
-        assert!(!users.is_empty());
-        
+        // Should have at least root user (unless root has nologin shell)
         // Check that all users have valid UIDs (0 or >= 1000)
         for user in &users {
             assert!(user.uid == 0 || user.uid >= 1000);
         }
         
-        // Should have root user
-        assert!(users.iter().any(|u| u.uid == 0 && u.username == "root"));
+        // All users should have login shells (no nologin shells)
+        for user in &users {
+            if let Some(shell) = &user.shell {
+                assert!(
+                    shell != "/usr/sbin/nologin" && 
+                    shell != "/sbin/nologin" && 
+                    shell != "/bin/false" && 
+                    shell != "/usr/bin/false",
+                    "User {} has nologin shell: {}", user.username, shell
+                );
+            }
+        }
     }
 
     #[test]
     fn test_user_disabled_detection() {
-        assert!(is_user_disabled("/usr/bin/false"));
-        assert!(is_user_disabled("/sbin/nologin"));
+        // Since we filter out nologin shells during collection,
+        // is_user_disabled now returns false for all shells
+        // (could be extended to check shadow file for account locking)
         assert!(!is_user_disabled("/bin/bash"));
         assert!(!is_user_disabled("/bin/zsh"));
+        assert!(!is_user_disabled("/usr/bin/false")); // Already filtered out during collection
+        assert!(!is_user_disabled("/sbin/nologin"));  // Already filtered out during collection
     }
 }

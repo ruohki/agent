@@ -556,19 +556,19 @@ mod tests {
 
     #[test]
     fn test_parse_valid_ssh_key() {
-        let key_line = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC test@example.com";
+        let key_line = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDO5XOnOPRhZ/6vQSXnd1QN2i0Swq9FvM3Nwwx5GcBTP9ydZiYqHA00wYRmWoEQpUdrosGE8UaanvdNxCm79oX0AJdiBMm7L73G3J5svovX5jY5ysOB9BnWrMrl+a180L8bWiQ3G/4zMk8dGgkf4NMa6X6KqdfjL0NKKam6q8SJ21CBDaJ5QlBZUEOWsX3qEhs/yswTNT+M7eU+NnaQTzGTfR52sW9ks+lKAF1y4lBiS3L/jeu3eO+XFVVmvbbT6ees+hMnWa0Os8AZx/k9aKao+4GSW1QlQZWuUxcG1r54djP8jiiFrrNsqJ5zEq0R8DkgfOYhxzAfyjAeCaZ6PQuj test@example.com";
         let result = SshKey::parse(key_line);
         assert!(result.is_ok());
         
         let key = result.unwrap();
         assert_eq!(key.key_type, "ssh-rsa");
-        assert_eq!(key.key_data, "AAAAB3NzaC1yc2EAAAADAQABAAABgQC");
+        assert_eq!(key.key_data, "AAAAB3NzaC1yc2EAAAADAQABAAABAQDO5XOnOPRhZ/6vQSXnd1QN2i0Swq9FvM3Nwwx5GcBTP9ydZiYqHA00wYRmWoEQpUdrosGE8UaanvdNxCm79oX0AJdiBMm7L73G3J5svovX5jY5ysOB9BnWrMrl+a180L8bWiQ3G/4zMk8dGgkf4NMa6X6KqdfjL0NKKam6q8SJ21CBDaJ5QlBZUEOWsX3qEhs/yswTNT+M7eU+NnaQTzGTfR52sW9ks+lKAF1y4lBiS3L/jeu3eO+XFVVmvbbT6ees+hMnWa0Os8AZx/k9aKao+4GSW1QlQZWuUxcG1r54djP8jiiFrrNsqJ5zEq0R8DkgfOYhxzAfyjAeCaZ6PQuj");
         assert_eq!(key.comment, Some("test@example.com".to_string()));
     }
 
     #[test]
     fn test_parse_key_without_comment() {
-        let key_line = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG";
+        let key_line = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMRzhlN/DHptVc+onPgMzh73YshU9/T3BLEkip0gGx9e";
         let result = SshKey::parse(key_line);
         assert!(result.is_ok());
         
@@ -588,12 +588,12 @@ mod tests {
     fn test_ssh_key_to_string() {
         let key = SshKey {
             key_type: "ssh-rsa".to_string(),
-            key_data: "AAAAB3NzaC1yc2EAAAADAQABAAAB".to_string(),
+            key_data: "AAAAB3NzaC1yc2EAAAADAQABAAABAQDO5XOnOPRhZ/6vQSXnd1QN2i0Swq9FvM3Nwwx5GcBTP9ydZiYqHA00wYRmWoEQpUdrosGE8UaanvdNxCm79oX0AJdiBMm7L73G3J5svovX5jY5ysOB9BnWrMrl+a180L8bWiQ3G/4zMk8dGgkf4NMa6X6KqdfjL0NKKam6q8SJ21CBDaJ5QlBZUEOWsX3qEhs/yswTNT+M7eU+NnaQTzGTfR52sW9ks+lKAF1y4lBiS3L/jeu3eO+XFVVmvbbT6ees+hMnWa0Os8AZx/k9aKao+4GSW1QlQZWuUxcG1r54djP8jiiFrrNsqJ5zEq0R8DkgfOYhxzAfyjAeCaZ6PQuj".to_string(),
             comment: Some("test@example.com".to_string()),
             fingerprint: "SHA256:test".to_string(),
         };
         
-        assert_eq!(key.to_string(), "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB test@example.com");
+        assert_eq!(key.to_string(), "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDO5XOnOPRhZ/6vQSXnd1QN2i0Swq9FvM3Nwwx5GcBTP9ydZiYqHA00wYRmWoEQpUdrosGE8UaanvdNxCm79oX0AJdiBMm7L73G3J5svovX5jY5ysOB9BnWrMrl+a180L8bWiQ3G/4zMk8dGgkf4NMa6X6KqdfjL0NKKam6q8SJ21CBDaJ5QlBZUEOWsX3qEhs/yswTNT+M7eU+NnaQTzGTfR52sW9ks+lKAF1y4lBiS3L/jeu3eO+XFVVmvbbT6ees+hMnWa0Os8AZx/k9aKao+4GSW1QlQZWuUxcG1r54djP8jiiFrrNsqJ5zEq0R8DkgfOYhxzAfyjAeCaZ6PQuj test@example.com");
     }
 
     #[test]

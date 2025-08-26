@@ -55,7 +55,11 @@ The agent implements a monitoring and key management system with these core resp
 
 ### System Information Collection
 - Hostname and system details (OS, arch, kernel, distribution)
-- User discovery (UID >= 1000 + root user, filtering system users)
+- User discovery with smart filtering:
+  - Includes UID 0 (root) and UID >= 1000 (regular users)
+  - Excludes system users (UID 1-999) 
+  - Excludes users with nologin shells (`/sbin/nologin`, `/usr/sbin/nologin`, `/bin/false`, `/usr/bin/false`)
+  - Only reports users who can actually log in via SSH
 - System metrics (load average, disk usage, memory, uptime)
 
 ### API Communication

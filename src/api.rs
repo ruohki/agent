@@ -63,6 +63,16 @@ pub struct KeyAssignmentsResponse {
     pub error: Option<String>,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct VersionErrorResponse {
+    pub error: String,
+    pub message: String,
+    #[serde(rename = "minimumVersion")]
+    pub minimum_version: String,
+    #[serde(rename = "currentVersion")]
+    pub current_version: String,
+}
+
 pub struct ApiClient {
     client: Client,
     base_url: String,
@@ -139,6 +149,18 @@ impl ApiClient {
             }
             
             Ok(parsed_response)
+        } else if status == reqwest::StatusCode::UPGRADE_REQUIRED {
+            // Handle HTTP 426 - Agent version too old
+            if let Ok(version_error) = serde_json::from_str::<VersionErrorResponse>(&response_text) {
+                error!("Agent version too old: {}", version_error.message);
+                error!("Current version: {}, Minimum required: {}", 
+                       version_error.current_version, version_error.minimum_version);
+                return Err(anyhow!("Agent version {} is too old. Minimum required version: {}. Please update the agent.",
+                                 version_error.current_version, version_error.minimum_version));
+            } else {
+                error!("Agent version check failed with HTTP 426 but could not parse response");
+                return Err(anyhow!("Agent version too old. Please update the agent."));
+            }
         } else {
             // Try to parse as error response first
             if let Ok(error_response) = serde_json::from_str::<AgentReportResponse>(&response_text) {
@@ -198,6 +220,14 @@ impl ApiClient {
             match self.report_agent_data(report).await {
                 Ok(response) => return Ok(response),
                 Err(e) => {
+                    let error_msg = e.to_string();
+                    
+                    // Don't retry on version errors (HTTP 426) - these won't resolve with retries
+                    if error_msg.contains("Agent version") && error_msg.contains("too old") {
+                        error!("Version error detected - not retrying: {}", error_msg);
+                        return Err(e);
+                    }
+                    
                     warn!("Report attempt {} failed: {}", attempt, e);
                     last_error = Some(e);
                     

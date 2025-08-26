@@ -56,7 +56,13 @@ async fn main() -> Result<()> {
             info!("Report completed successfully");
         }
         Err(e) => {
-            eprintln!("Error: {}", e);
+            let error_msg = e.to_string();
+            if error_msg.contains("Agent version") && error_msg.contains("too old") {
+                eprintln!("❌ {}", error_msg);
+                eprintln!("Please download and install the latest version of the KeyMeister agent.");
+            } else {
+                eprintln!("Error: {}", error_msg);
+            }
             return Err(e);
         }
     }
