@@ -16,4 +16,4 @@ log = "0.4"
 env_logger = "0.10"
 base64 = "0.22"
 sha2 = "0.10"
-nix = { version = "0.28", features = ["user"] }
+nix = { version = "0.28", features = ["user", "fs"] }

@@ -68,11 +68,16 @@ The agent implements a monitoring and key management system with these core resp
 - **Complete access control**: Only keys assigned through KeyMeister server are allowed
 - **Comprehensive discovery**: Finds all authorized_keys files for managed users (UID 0 and >= 1000)
 - **Atomic file operations**: Uses temporary files and atomic moves to prevent corruption
-- **Proper permissions**: Creates .ssh directories (700) and authorized_keys files (600) with correct ownership
+- **Proper permissions and ownership**: 
+  - Creates .ssh directories with mode 700
+  - Creates authorized_keys files with mode 600
+  - Sets correct ownership (user:group) when running as root
+  - Looks up primary group from /etc/passwd for each user
+  - Warns when not running as root (ownership cannot be changed)
 - **Security validation**: Validates SSH key formats, types, and base64 encoding before deployment
 - **Managed file headers**: Adds clear warnings that files are managed by KeyMeister
 - **Dry-run mode**: Safe testing with `--dry-run` flag that shows changes without modifying files
-- **Comprehensive logging**: Detailed logs of all key additions, removals, and file operations
+- **Comprehensive logging**: Detailed logs of all key additions, removals, file operations, and ownership changes
 
 ## API Integration
 
@@ -90,3 +95,11 @@ The agent follows the API specification in `api_documentation.md`:
 - System user filtering prevents exposure of service accounts
 - All API communication should use HTTPS in production
 - Uses rustls for TLS (pure Rust implementation, no OpenSSL dependency)
+
+## Deployment Requirements
+
+For proper SSH key management, the agent should be deployed as:
+- **Root privileges**: Required to set correct ownership of authorized_keys files for different users
+- **Systemd timer**: Recommended scheduling mechanism for periodic execution
+- **Secure token storage**: Use environment variables or protected configuration files
+- **HTTPS endpoints**: Always use encrypted connections to the KeyMeister server

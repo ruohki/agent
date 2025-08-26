@@ -340,6 +340,12 @@ impl SshKeyManager {
             stats.files_updated = 1;
         } else {
             info!("DRY RUN: Would update {}", file.path.display());
+            if nix::unistd::getuid().is_root() {
+                let gid = self.get_user_primary_gid(file.uid).map(|g| g.as_raw()).unwrap_or(file.uid);
+                info!("DRY RUN: Would set ownership of {} to {}:{}", file.path.display(), file.uid, gid);
+            } else if file.uid != nix::unistd::getuid().as_raw() {
+                info!("DRY RUN: Would warn about ownership (not running as root)");
+            }
             // In dry run, we count it as "would be updated"
             stats.files_updated = 1;
         }
@@ -401,15 +407,62 @@ impl SshKeyManager {
         fs::rename(&temp_path, &file.path)
             .context("Failed to move temporary file to authorized_keys")?;
 
-        // TODO: Set proper ownership (requires root privileges)
-        // This would need to be done via a setuid helper or run as root
-        if file.uid != nix::unistd::getuid().as_raw() {
+        // Set proper ownership if running as root
+        if nix::unistd::getuid().is_root() {
+            let uid = nix::unistd::Uid::from_raw(file.uid);
+            // Try to get the primary group for this user, fallback to same ID as UID
+            let gid = self.get_user_primary_gid(file.uid).unwrap_or(nix::unistd::Gid::from_raw(file.uid));
+            
+            // Set ownership of .ssh directory
+            if let Err(e) = nix::unistd::chown(ssh_dir, Some(uid), Some(gid)) {
+                warn!("Failed to set ownership of {}: {}", ssh_dir.display(), e);
+            } else {
+                debug!("Set ownership of {} to {}:{}", ssh_dir.display(), file.uid, file.uid);
+            }
+            
+            // Set ownership of authorized_keys file
+            if let Err(e) = nix::unistd::chown(&file.path, Some(uid), Some(gid)) {
+                warn!("Failed to set ownership of {}: {}", file.path.display(), e);
+            } else {
+                info!("Set ownership of {} to {}:{}", file.path.display(), file.uid, file.uid);
+            }
+        } else if file.uid != nix::unistd::getuid().as_raw() {
             warn!("Cannot set ownership of {} to UID {} (not running as root)", 
                   file.path.display(), file.uid);
+            warn!("File will be owned by current user ({})", nix::unistd::getuid());
         }
 
         info!("Updated authorized_keys file: {} ({} keys)", file.path.display(), keys.len());
         Ok(())
+    }
+
+    /// Get the primary group ID for a user by looking up /etc/passwd
+    fn get_user_primary_gid(&self, uid: u32) -> Option<nix::unistd::Gid> {
+        #[cfg(unix)]
+        {
+            use std::fs;
+            
+            if let Ok(passwd_content) = fs::read_to_string("/etc/passwd") {
+                for line in passwd_content.lines() {
+                    if line.trim().is_empty() || line.starts_with('#') {
+                        continue;
+                    }
+                    
+                    let parts: Vec<&str> = line.split(':').collect();
+                    if parts.len() >= 4 {
+                        if let Ok(line_uid) = parts[2].parse::<u32>() {
+                            if line_uid == uid {
+                                if let Ok(gid) = parts[3].parse::<u32>() {
+                                    return Some(nix::unistd::Gid::from_raw(gid));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        None
     }
 }
 
