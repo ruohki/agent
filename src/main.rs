@@ -2,6 +2,7 @@ mod cli;
 mod system;
 mod users;
 mod api;
+mod ssh_keys;
 
 use clap::Parser;
 use log::{info, error, warn};
@@ -9,6 +10,7 @@ use anyhow::Result;
 
 use cli::Args;
 use api::{ApiClient, AgentReport};
+use ssh_keys::SshKeyManager;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,9 +20,13 @@ async fn main() -> Result<()> {
     
     println!("KeyMeister Agent v{}", args.agent_version);
     println!("Endpoint: {}", args.endpoint);
+    if args.dry_run {
+        println!("DRY RUN MODE: No files will be modified");
+    }
     
     info!("Starting KeyMeister Agent v{}", args.agent_version);
     info!("Endpoint: {}", args.endpoint);
+    info!("Dry run mode: {}", args.dry_run);
     
     let api_client = ApiClient::new(args.endpoint.clone(), args.token.clone())?;
     
@@ -44,7 +50,7 @@ async fn main() -> Result<()> {
     
     println!("Running report...");
     info!("Running report");
-    match run_report_cycle(&api_client, &args.agent_version).await {
+    match run_report_cycle(&api_client, &args.agent_version, args.dry_run).await {
         Ok(_) => {
             println!("Report completed successfully");
             info!("Report completed successfully");
@@ -58,7 +64,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run_report_cycle(api_client: &ApiClient, agent_version: &str) -> Result<()> {
+async fn run_report_cycle(api_client: &ApiClient, agent_version: &str, dry_run: bool) -> Result<()> {
     info!("Starting report cycle");
     
     // Collect system information
@@ -85,7 +91,7 @@ async fn run_report_cycle(api_client: &ApiClient, agent_version: &str) -> Result
         hostname,
         system_info,
         agent_version: agent_version.to_string(),
-        users,
+        users: users.clone(),
         load_average,
         disk_usage,
         memory_usage,
@@ -103,18 +109,43 @@ async fn run_report_cycle(api_client: &ApiClient, agent_version: &str) -> Result
         info!("Host ID: {}", host_id);
     }
     
-    // Fetch key assignments
+    // Fetch key assignments and deploy SSH keys
     match api_client.get_key_assignments().await {
         Ok(key_response) => {
             let assignment_count = key_response.assignments.as_ref().map(|a| a.len()).unwrap_or(0);
             println!("Retrieved {} SSH key assignments", assignment_count);
-            println!("{:?}", key_response);
-            // TODO: Implement SSH key deployment
-            if assignment_count > 0 {
-                println!("SSH key deployment not yet implemented");
+            info!("Retrieved {} SSH key assignments", assignment_count);
+            
+            if let Some(assignments) = &key_response.assignments {
+                let mode = if dry_run { " (DRY RUN)" } else { "" };
+                println!("Syncing SSH keys{}...", mode);
+                let ssh_manager = SshKeyManager::new();
+                
+                match ssh_manager.sync_ssh_keys(&users, assignments, dry_run) {
+                    Ok(stats) => {
+                        let prefix = if dry_run { "Would have: " } else { "" };
+                        println!("SSH key sync completed{}:", mode);
+                        println!("  {} users processed", stats.users_processed);
+                        println!("  {}{} keys added", prefix, stats.keys_added);
+                        println!("  {}{} keys removed", prefix, stats.keys_removed);
+                        println!("  {}{} files updated", prefix, stats.files_updated);
+                        if stats.errors > 0 {
+                            println!("  {} errors occurred", stats.errors);
+                        }
+                        
+                        info!("SSH key sync stats: {:?}", stats);
+                    }
+                    Err(e) => {
+                        eprintln!("SSH key sync failed: {}", e);
+                        error!("SSH key sync failed: {}", e);
+                    }
+                }
+            } else {
+                info!("No key assignments to process");
             }
         }
         Err(e) => {
+            eprintln!("Failed to fetch key assignments: {}", e);
             error!("Failed to fetch key assignments: {}", e);
         }
     }

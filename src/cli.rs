@@ -23,4 +23,8 @@ pub struct Args {
     #[arg(long, default_value = env!("CARGO_PKG_VERSION"))]
     pub agent_version: String,
 
+    /// Dry run mode - show what would be done without making changes
+    #[arg(long)]
+    pub dry_run: bool,
+
 }

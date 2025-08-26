@@ -24,11 +24,14 @@ cargo build --release
 # Run the agent (requires --token and --endpoint)
 cargo run -- --token <TOKEN> --endpoint <ENDPOINT>
 
+# Run with dry-run mode (safe testing, no file modifications)
+cargo run -- --token <TOKEN> --endpoint <ENDPOINT> --dry-run
+
 # Run with verbose logging
 RUST_LOG=info cargo run -- --token <TOKEN> --endpoint <ENDPOINT>
 
 # Example with local development server
-cargo run -- --token test-token --endpoint http://localhost:3000
+cargo run -- --token test-token --endpoint http://localhost:3000 --dry-run
 
 # Check for compilation errors
 cargo check
@@ -62,10 +65,14 @@ The agent implements a monitoring and key management system with these core resp
 - Implements error handling with exponential backoff
 
 ### SSH Key Management
-- Manages `~/.ssh/authorized_keys` files for assigned users
-- Creates SSH directories with proper permissions (700 for .ssh, 600 for authorized_keys)
-- Validates public key formats before deployment
-- Handles both key addition and removal based on server assignments
+- **Complete access control**: Only keys assigned through KeyMeister server are allowed
+- **Comprehensive discovery**: Finds all authorized_keys files for managed users (UID 0 and >= 1000)
+- **Atomic file operations**: Uses temporary files and atomic moves to prevent corruption
+- **Proper permissions**: Creates .ssh directories (700) and authorized_keys files (600) with correct ownership
+- **Security validation**: Validates SSH key formats, types, and base64 encoding before deployment
+- **Managed file headers**: Adds clear warnings that files are managed by KeyMeister
+- **Dry-run mode**: Safe testing with `--dry-run` flag that shows changes without modifying files
+- **Comprehensive logging**: Detailed logs of all key additions, removals, and file operations
 
 ## API Integration
 
