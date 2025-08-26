@@ -66,7 +66,13 @@ The agent implements a monitoring and key management system with these core resp
 
 ### SSH Key Management
 - **Complete access control**: Only keys assigned through KeyMeister server are allowed
-- **Comprehensive discovery**: Finds all authorized_keys files for managed users (UID 0 and >= 1000)
+- **Smart discovery**: 
+  - Automatically parses `sshd_config` to find all `AuthorizedKeysFile` directives
+  - Supports custom authorized_keys file locations beyond the default `~/.ssh/authorized_keys`
+  - Expands SSH configuration tokens: `%h` (home directory), `%u` (username), `%%` (literal %)
+  - Handles both relative and absolute path patterns
+  - Falls back to default location if no sshd_config found
+- **Comprehensive coverage**: Finds all authorized_keys files for managed users (UID 0 and >= 1000)
 - **Atomic file operations**: Uses temporary files and atomic moves to prevent corruption
 - **Proper permissions and ownership**: 
   - Creates .ssh directories with mode 700

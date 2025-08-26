@@ -163,29 +163,113 @@ impl SshKeyManager {
     pub fn discover_authorized_keys_files(&self, users: &[UserInfo]) -> Result<Vec<AuthorizedKeysFile>> {
         let mut files = Vec::new();
         
+        // Get authorized_keys file patterns from sshd_config
+        let auth_keys_patterns = self.get_authorized_keys_patterns()?;
+        info!("Found {} AuthorizedKeysFile patterns in sshd_config", auth_keys_patterns.len());
+        
         for user in users {
-            let ssh_dir = if user.uid == 0 {
-                PathBuf::from("/root/.ssh")
+            let user_home = if user.uid == 0 {
+                PathBuf::from("/root")
             } else {
                 match &user.home_dir {
-                    Some(home) => PathBuf::from(home).join(".ssh"),
-                    None => PathBuf::from("/home").join(&user.username).join(".ssh"),
+                    Some(home) => PathBuf::from(home),
+                    None => PathBuf::from("/home").join(&user.username),
                 }
             };
             
-            let auth_keys_path = ssh_dir.join("authorized_keys");
-            let exists = auth_keys_path.exists();
-            
-            files.push(AuthorizedKeysFile {
-                path: auth_keys_path,
-                username: user.username.clone(),
-                uid: user.uid,
-                exists,
-            });
+            // Expand each pattern for this user
+            for pattern in &auth_keys_patterns {
+                if let Some(expanded_path) = self.expand_authorized_keys_pattern(pattern, &user.username, &user_home) {
+                    let exists = expanded_path.exists();
+                    
+                    files.push(AuthorizedKeysFile {
+                        path: expanded_path,
+                        username: user.username.clone(),
+                        uid: user.uid,
+                        exists,
+                    });
+                }
+            }
         }
         
-        info!("Discovered {} authorized_keys files", files.len());
+        info!("Discovered {} authorized_keys files across all patterns", files.len());
         Ok(files)
+    }
+
+    /// Parse sshd_config to find AuthorizedKeysFile directives
+    fn get_authorized_keys_patterns(&self) -> Result<Vec<String>> {
+        let mut patterns = Vec::new();
+        
+        // Default pattern if no sshd_config found
+        let default_patterns = vec![".ssh/authorized_keys".to_string()];
+        
+        // Common sshd_config locations
+        let sshd_config_paths = [
+            "/etc/ssh/sshd_config",
+            "/etc/sshd_config",
+            "/usr/local/etc/ssh/sshd_config",
+        ];
+        
+        let mut found_config = false;
+        for config_path in &sshd_config_paths {
+            if let Ok(content) = fs::read_to_string(config_path) {
+                info!("Reading SSH configuration from: {}", config_path);
+                found_config = true;
+                
+                for line in content.lines() {
+                    let line = line.trim();
+                    
+                    // Skip comments and empty lines
+                    if line.is_empty() || line.starts_with('#') {
+                        continue;
+                    }
+                    
+                    // Look for AuthorizedKeysFile directive
+                    if let Some(keys_part) = line.strip_prefix("AuthorizedKeysFile") {
+                        let keys_part = keys_part.trim();
+                        
+                        // Handle multiple files separated by spaces
+                        for pattern in keys_part.split_whitespace() {
+                            if !pattern.is_empty() {
+                                patterns.push(pattern.to_string());
+                                info!("Found AuthorizedKeysFile pattern: {}", pattern);
+                            }
+                        }
+                    }
+                }
+                break; // Use first found config file
+            }
+        }
+        
+        if !found_config {
+            warn!("No sshd_config found, using default authorized_keys location");
+            patterns = default_patterns;
+        } else if patterns.is_empty() {
+            info!("No AuthorizedKeysFile directive found in sshd_config, using default");
+            patterns = default_patterns;
+        }
+        
+        Ok(patterns)
+    }
+
+    /// Expand SSH authorized_keys file pattern with user-specific values
+    fn expand_authorized_keys_pattern(&self, pattern: &str, username: &str, home_dir: &PathBuf) -> Option<PathBuf> {
+        let mut expanded = pattern.to_string();
+        
+        // Replace SSH configuration tokens
+        expanded = expanded.replace("%h", &home_dir.to_string_lossy());
+        expanded = expanded.replace("%u", username);
+        expanded = expanded.replace("%%", "%");
+        
+        // If pattern starts with /, it's absolute; otherwise relative to home
+        let path = if expanded.starts_with('/') {
+            PathBuf::from(expanded)
+        } else {
+            home_dir.join(expanded)
+        };
+        
+        debug!("Expanded pattern '{}' to '{}' for user {}", pattern, path.display(), username);
+        Some(path)
     }
 
     /// Read and parse authorized_keys file
@@ -510,5 +594,32 @@ mod tests {
         };
         
         assert_eq!(key.to_string(), "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB test@example.com");
+    }
+
+    #[test]
+    fn test_expand_authorized_keys_pattern() {
+        let manager = SshKeyManager::new();
+        let username = "testuser";
+        let home_dir = PathBuf::from("/home/testuser");
+
+        // Test relative path
+        let result = manager.expand_authorized_keys_pattern(".ssh/authorized_keys", username, &home_dir);
+        assert_eq!(result, Some(PathBuf::from("/home/testuser/.ssh/authorized_keys")));
+
+        // Test absolute path
+        let result = manager.expand_authorized_keys_pattern("/etc/ssh/authorized_keys/%u", username, &home_dir);
+        assert_eq!(result, Some(PathBuf::from("/etc/ssh/authorized_keys/testuser")));
+
+        // Test %h expansion
+        let result = manager.expand_authorized_keys_pattern("%h/.ssh/authorized_keys", username, &home_dir);
+        assert_eq!(result, Some(PathBuf::from("/home/testuser/.ssh/authorized_keys")));
+
+        // Test %u expansion
+        let result = manager.expand_authorized_keys_pattern("/var/keys/%u/authorized_keys", username, &home_dir);
+        assert_eq!(result, Some(PathBuf::from("/var/keys/testuser/authorized_keys")));
+
+        // Test %% expansion
+        let result = manager.expand_authorized_keys_pattern("/path/with%%percent/%u", username, &home_dir);
+        assert_eq!(result, Some(PathBuf::from("/path/with%percent/testuser")));
     }
 }
