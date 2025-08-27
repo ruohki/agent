@@ -29,11 +29,16 @@ jobs:
     - name: Build
       run: cross build --release --target ${{ matrix.target }}
     
+    - name: Rename binary
+      run: |
+        mkdir -p renamed
+        cp target/${{ matrix.target }}/release/kmagent renamed/kmagent-${{ matrix.target }}
+    
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: binary-${{ matrix.target }}
-        path: target/${{ matrix.target }}/release/kmagent
+        path: renamed/kmagent-${{ matrix.target }}
 
   release:
     needs: build
@@ -47,7 +52,7 @@ jobs:
       with:
         generate_release_notes: true
         files: |
-          binary-x86_64-unknown-linux-gnu/kmagent
-          binary-aarch64-unknown-linux-gnu/kmagent
+          binary-x86_64-unknown-linux-gnu/kmagent-linux-x86_64
+          binary-aarch64-unknown-linux-gnu/kmagent-linux-aarch64
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
