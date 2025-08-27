@@ -31,14 +31,17 @@ jobs:
     
     - name: Rename binary
       run: |
-        mkdir -p renamed
-        cp target/${{ matrix.target }}/release/kmagent renamed/kmagent-${{ matrix.target }}
+        if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]]; then
+          cp target/${{ matrix.target }}/release/kmagent kmagent-linux-x86_64
+        else
+          cp target/${{ matrix.target }}/release/kmagent kmagent-linux-aarch64
+        fi
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: binary-${{ matrix.target }}
-        path: renamed/kmagent-${{ matrix.target }}
+        path: kmagent-linux-*
 
   release:
     needs: build
