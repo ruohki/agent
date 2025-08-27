@@ -4,7 +4,7 @@ release version:
     git add Cargo.toml Cargo.lock
     git commit -m "chore: bump version to {{version}}"
     git tag v{{version}}
-    git push origin main
+    git push origin master
     git push origin v{{version}}
 
 # Release patch version (0.1.0 -> 0.1.1)
