@@ -4,7 +4,7 @@ use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use anyhow::{Result, Context, anyhow};
-use log::{info, warn, error, debug};
+use tracing::{info, warn, error, debug, instrument};
 use serde::Serialize;
 
 use crate::api::KeyAssignment;
@@ -300,6 +300,7 @@ impl SshKeyManager {
     }
 
     /// Sync SSH keys for all users based on KeyMeister assignments
+    #[instrument(skip(self, users, assignments))]
     pub fn sync_ssh_keys(
         &self,
         users: &[UserInfo],

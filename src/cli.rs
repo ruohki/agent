@@ -13,11 +13,11 @@ For verbose logging, set RUST_LOG=info environment variable")]
 pub struct Args {
     /// API token for authentication
     #[arg(long, env = "KMAGENT_TOKEN")]
-    pub token: String,
+    pub token: Option<String>,
 
     /// Server endpoint (FQDN, e.g., http://localhost:3000)
     #[arg(long, env = "KMAGENT_ENDPOINT")]
-    pub endpoint: String,
+    pub endpoint: Option<String>,
 
     /// Agent version to report
     #[arg(long, default_value = env!("CARGO_PKG_VERSION"))]
@@ -26,5 +26,13 @@ pub struct Args {
     /// Dry run mode - show what would be done without making changes
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Check for available updates
+    #[arg(long)]
+    pub check_update: bool,
+
+    /// Download and install updates if available
+    #[arg(long)]
+    pub update: bool,
 
 }

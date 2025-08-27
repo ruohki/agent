@@ -1,6 +1,5 @@
 use serde::Serialize;
-use sysinfo::{Disks, System};
-use std::collections::HashMap;
+use sysinfo::System;
 use anyhow::Result;
 
 #[derive(Serialize, Debug)]
@@ -13,19 +12,6 @@ pub struct SystemInfo {
     pub version: String,
 }
 
-#[derive(Serialize, Debug)]
-pub struct DiskUsage {
-    pub total: u64,
-    pub used: u64,
-    pub available: u64,
-}
-
-#[derive(Serialize, Debug)]
-pub struct MemoryUsage {
-    pub total: u64,
-    pub used: u64,
-    pub available: u64,
-}
 
 #[cfg(target_os = "linux")]
 fn get_linux_distribution() -> Option<String> {
@@ -95,56 +81,6 @@ pub fn collect_hostname() -> Result<String> {
         .pipe(Ok)
 }
 
-pub fn collect_load_average() -> Option<[f64; 3]> {
-    #[cfg(unix)]
-    {
-        let load = System::load_average();
-        Some([load.one, load.five, load.fifteen])
-    }
-    #[cfg(not(unix))]
-    {
-        None
-    }
-}
-
-pub fn collect_disk_usage() -> HashMap<String, DiskUsage> {
-    let mut disk_usage = HashMap::new();
-    let disks = Disks::new_with_refreshed_list();
-
-    for disk in &disks {
-        let mount_point = disk.mount_point().to_string_lossy().to_string();
-        let total = disk.total_space();
-        let available = disk.available_space();
-        let used = total - available;
-
-        disk_usage.insert(mount_point, DiskUsage {
-            total,
-            used,
-            available,
-        });
-    }
-
-    disk_usage
-}
-
-pub fn collect_memory_usage() -> MemoryUsage {
-    let mut sys = System::new();
-    sys.refresh_memory();
-
-    let total = sys.total_memory();
-    let used = sys.used_memory();
-    let available = total - used;
-
-    MemoryUsage {
-        total,
-        used,
-        available,
-    }
-}
-
-pub fn collect_uptime() -> Option<u64> {
-    Some(System::uptime())
-}
 
 // Extension trait for pipe operations
 trait Pipe<T> {

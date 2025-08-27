@@ -3,32 +3,67 @@ mod system;
 mod users;
 mod api;
 mod ssh_keys;
+mod update;
 
 use clap::Parser;
-use log::{info, error, warn};
+use tracing::{info, error, warn, instrument};
 use anyhow::Result;
 
 use cli::Args;
 use api::{ApiClient, AgentReport};
 use ssh_keys::SshKeyManager;
+use update::UpdateManager;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
     
     let args = Args::parse();
     
     println!("KeyMeister Agent v{}", args.agent_version);
-    println!("Endpoint: {}", args.endpoint);
+    if let Some(ref endpoint) = args.endpoint {
+        println!("Endpoint: {}", endpoint);
+    }
     if args.dry_run {
         println!("DRY RUN MODE: No files will be modified");
     }
     
     info!("Starting KeyMeister Agent v{}", args.agent_version);
-    info!("Endpoint: {}", args.endpoint);
+    if let Some(ref endpoint) = args.endpoint {
+        info!("Endpoint: {}", endpoint);
+    }
     info!("Dry run mode: {}", args.dry_run);
     
-    let api_client = ApiClient::new(args.endpoint.clone(), args.token.clone())?;
+    // Handle update operations first
+    if args.check_update || args.update {
+        println!("Checking for updates...");
+        let update_manager = UpdateManager::new()?;
+        let update_installed = update_manager.check_and_update(&args.agent_version, args.dry_run, args.update).await?;
+        
+        // If we just installed an update, exit so user can restart with new version
+        if args.update && update_installed {
+            println!("Please restart the agent to use the new version.");
+            return Ok(());
+        }
+        
+        // If we just checked for updates, exit
+        if args.check_update && !args.update {
+            return Ok(());
+        }
+        
+        // If we were trying to update but no update was needed, exit
+        if args.update && !update_installed {
+            return Ok(());
+        }
+    }
+    
+    // Validate required arguments for normal operations
+    let endpoint = args.endpoint.ok_or_else(|| anyhow::anyhow!("--endpoint is required for normal operations"))?;
+    let token = args.token.ok_or_else(|| anyhow::anyhow!("--token is required for normal operations"))?;
+    
+    let api_client = ApiClient::new(endpoint, token)?;
     
     // Initial health check
     println!("Checking API health...");
@@ -70,6 +105,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+#[instrument(skip(api_client))]
 async fn run_report_cycle(api_client: &ApiClient, agent_version: &str, dry_run: bool) -> Result<()> {
     info!("Starting report cycle");
     
@@ -77,10 +113,6 @@ async fn run_report_cycle(api_client: &ApiClient, agent_version: &str, dry_run: 
     let hostname = system::collect_hostname()?;
     let system_info = system::collect_system_info()?;
     let users = users::collect_users()?;
-    let load_average = system::collect_load_average();
-    let disk_usage = Some(system::collect_disk_usage());
-    let memory_usage = Some(system::collect_memory_usage());
-    let uptime_seconds = system::collect_uptime();
     
     println!("Collected system data:");
     println!("  Hostname: {}", hostname);
@@ -98,10 +130,6 @@ async fn run_report_cycle(api_client: &ApiClient, agent_version: &str, dry_run: 
         system_info,
         agent_version: agent_version.to_string(),
         users: users.clone(),
-        load_average,
-        disk_usage,
-        memory_usage,
-        uptime_seconds,
     };
     
     // Send report with retry logic

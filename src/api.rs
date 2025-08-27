@@ -1,10 +1,9 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use anyhow::{Result, anyhow};
-use log::{info, warn, error};
+use tracing::{info, warn, error, instrument};
 
-use crate::system::{SystemInfo, DiskUsage, MemoryUsage};
+use crate::system::SystemInfo;
 use crate::users::UserInfo;
 
 #[derive(Serialize, Debug)]
@@ -15,14 +14,6 @@ pub struct AgentReport {
     #[serde(rename = "agentVersion")]
     pub agent_version: String,
     pub users: Vec<UserInfo>,
-    #[serde(rename = "loadAverage", skip_serializing_if = "Option::is_none")]
-    pub load_average: Option<[f64; 3]>,
-    #[serde(rename = "diskUsage", skip_serializing_if = "Option::is_none")]
-    pub disk_usage: Option<HashMap<String, DiskUsage>>,
-    #[serde(rename = "memoryUsage", skip_serializing_if = "Option::is_none")]
-    pub memory_usage: Option<MemoryUsage>,
-    #[serde(rename = "uptimeSeconds", skip_serializing_if = "Option::is_none")]
-    pub uptime_seconds: Option<u64>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -99,6 +90,7 @@ impl ApiClient {
         })
     }
 
+    #[instrument(skip(self))]
     pub async fn health_check(&self) -> Result<bool> {
         let url = format!("{}/health", self.base_url);
         
@@ -120,6 +112,7 @@ impl ApiClient {
         }
     }
 
+    #[instrument(skip(self, report))]
     pub async fn report_agent_data(&self, report: &AgentReport) -> Result<AgentReportResponse> {
         let url = format!("{}/agent/report", self.base_url);
         
@@ -175,6 +168,7 @@ impl ApiClient {
         }
     }
 
+    #[instrument(skip(self))]
     pub async fn get_key_assignments(&self) -> Result<KeyAssignmentsResponse> {
         let url = format!("{}/host/keys", self.base_url);
         
@@ -213,6 +207,7 @@ impl ApiClient {
         }
     }
 
+    #[instrument(skip(self, report))]
     pub async fn report_with_retry(&self, report: &AgentReport, max_retries: u32) -> Result<AgentReportResponse> {
         let mut last_error = None;
         

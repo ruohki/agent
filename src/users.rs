@@ -1,6 +1,6 @@
 use serde::Serialize;
 use anyhow::Result;
-use log::debug;
+use tracing::{debug, instrument};
 
 #[derive(Serialize, Debug, Clone)]
 pub struct UserInfo {
@@ -14,6 +14,7 @@ pub struct UserInfo {
     pub disabled: Option<bool>,
 }
 
+#[instrument]
 pub fn collect_users() -> Result<Vec<UserInfo>> {
     let mut users = Vec::new();
     
