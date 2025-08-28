@@ -1,6 +1,6 @@
-# KeyMeister Agent API Documentation
+# PubliKey Agent API Documentation
 
-This document describes the REST API endpoints that the KeyMeister agent should use to communicate with the KeyMeister server.
+This document describes the REST API endpoints that the PubliKey agent should use to communicate with the PubliKey server.
 
 ## Base URL
 ```
@@ -15,7 +15,7 @@ All API endpoints require authentication using a Bearer token in the `Authorizat
 Authorization: Bearer km_abc123def456...
 ```
 
-The token is generated from the KeyMeister web interface when editing a host. Each host has its own unique API token.
+The token is generated from the PubliKey web interface when editing a host. Each host has its own unique API token.
 
 ## Endpoints
 
@@ -111,7 +111,7 @@ This is the primary endpoint that replaces multiple smaller endpoints. The agent
   - `kernel` (string): Kernel version
   - `distribution` (string): OS distribution (e.g., "Ubuntu", "CentOS", "macOS")
   - `version` (string): OS version (e.g., "22.04 LTS", "13.2")
-- `agentVersion` (string): Version of the KeyMeister agent
+- `agentVersion` (string): Version of the PubliKey agent
 - `users` (array): Array of user objects (see User Object Format below)
 
 #### Optional Fields
@@ -146,7 +146,7 @@ This is the primary endpoint that replaces multiple smaller endpoints. The agent
 
 **Special Root User Handling:**
 - If root user (UID 0) is not explicitly reported, the server will automatically add it as disabled
-- Root user can be enabled/disabled through the KeyMeister web interface
+- Root user can be enabled/disabled through the PubliKey web interface
 
 #### Response
 

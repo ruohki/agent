@@ -32,7 +32,7 @@ pub struct UpdateManager {
 impl UpdateManager {
     pub fn new() -> Result<Self> {
         let client = Client::builder()
-            .user_agent(format!("kmagent/{}", env!("CARGO_PKG_VERSION")))
+            .user_agent(format!("pkagent/{}", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| anyhow!("Failed to create HTTP client: {}", e))?;
 
@@ -64,7 +64,7 @@ impl UpdateManager {
             "unknown"
         };
 
-        format!("kmagent-{}-{}", os, arch)
+        format!("pkagent-{}-{}", os, arch)
     }
 
     /// Fetch the latest release information from GitHub

@@ -669,25 +669,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kmagent"
-version = "0.3.1"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "clap",
- "hostname",
- "nix",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "sysinfo",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -866,6 +847,25 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "pkagent"
+version = "0.3.1"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "clap",
+ "hostname",
+ "nix",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sysinfo",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "potential_utf"

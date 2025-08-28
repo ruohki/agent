@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the KeyMeister agent (`kmagent`), a Rust-based system monitoring agent that reports host information and manages SSH key deployments. The agent runs once per invocation and communicates with a KeyMeister server via REST API to:
+This is the PubliKey agent (`kmagent`), a Rust-based system monitoring agent that reports host information and manages SSH key deployments. The agent runs once per invocation and communicates with a PubliKey server via REST API to:
 
 - Report system status, users, and metrics to the server
 - Sync SSH key assignments from the server  
@@ -59,13 +59,13 @@ The agent implements a monitoring and key management system with these core resp
 - System metrics (load average, disk usage, memory, uptime)
 
 ### API Communication
-- Authenticates using Bearer tokens from KeyMeister server
+- Authenticates using Bearer tokens from PubliKey server
 - Primary endpoint: `POST /agent/report` for comprehensive system reporting
 - Secondary endpoint: `GET /host/keys` for SSH key assignment retrieval
 - Implements error handling with exponential backoff
 
 ### SSH Key Management
-- **Complete access control**: Only keys assigned through KeyMeister server are allowed
+- **Complete access control**: Only keys assigned through PubliKey server are allowed
 - **Comprehensive discovery**: Finds all authorized_keys files for managed users (UID 0 and >= 1000)
 - **Atomic file operations**: Uses temporary files and atomic moves to prevent corruption
 - **Proper permissions and ownership**: 
@@ -75,7 +75,7 @@ The agent implements a monitoring and key management system with these core resp
   - Looks up primary group from /etc/passwd for each user
   - Warns when not running as root (ownership cannot be changed)
 - **Security validation**: Validates SSH key formats, types, and base64 encoding before deployment
-- **Managed file headers**: Adds clear warnings that files are managed by KeyMeister
+- **Managed file headers**: Adds clear warnings that files are managed by PubliKey
 - **Dry-run mode**: Safe testing with `--dry-run` flag that shows changes without modifying files
 - **Comprehensive logging**: Detailed logs of all key additions, removals, file operations, and ownership changes
 
@@ -102,4 +102,4 @@ For proper SSH key management, the agent should be deployed as:
 - **Root privileges**: Required to set correct ownership of authorized_keys files for different users
 - **Systemd timer**: Recommended scheduling mechanism for periodic execution
 - **Secure token storage**: Use environment variables or protected configuration files
-- **HTTPS endpoints**: Always use encrypted connections to the KeyMeister server
+- **HTTPS endpoints**: Always use encrypted connections to the PubliKey server

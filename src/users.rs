@@ -1,6 +1,7 @@
 use serde::Serialize;
 use anyhow::Result;
 use tracing::{debug, instrument};
+use std::env;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct UserInfo {
@@ -15,30 +16,87 @@ pub struct UserInfo {
 }
 
 #[instrument]
-pub fn collect_users() -> Result<Vec<UserInfo>> {
+pub fn collect_users(exclude_users: &[String], include_users: &[String], user_mode: bool) -> Result<Vec<UserInfo>> {
     let mut users = Vec::new();
     
-    #[cfg(unix)]
-    {
-        users.extend(parse_passwd_file()?);
+    if user_mode {
+        // In user mode, only report the current user
+        let current_user = get_current_user()?;
+        users.push(current_user);
+        debug!("User mode: only including current user");
+    } else {
+        #[cfg(unix)]
+        {
+            users.extend(parse_passwd_file()?);
+        }
+        
+        #[cfg(not(unix))]
+        {
+            // On non-Unix systems, just add a mock root user
+            users.push(UserInfo {
+                username: "root".to_string(),
+                uid: 0,
+                shell: Some("/bin/bash".to_string()),
+                home_dir: Some("/root".to_string()),
+                disabled: Some(false),
+            });
+        }
     }
     
-    #[cfg(not(unix))]
-    {
-        // On non-Unix systems, just add a mock root user
-        users.push(UserInfo {
-            username: "root".to_string(),
-            uid: 0,
-            shell: Some("/bin/bash".to_string()),
-            home_dir: Some("/root".to_string()),
-            disabled: Some(false),
-        });
+    // Apply user filtering (include mode takes precedence over exclude mode)
+    if !include_users.is_empty() {
+        let initial_count = users.len();
+        users.retain(|user| include_users.contains(&user.username));
+        let included_count = users.len();
+        let filtered_count = initial_count - included_count;
+        if filtered_count > 0 {
+            debug!("Included {} users (filtered out {}): {:?}", included_count, filtered_count, include_users);
+        }
+    } else if !exclude_users.is_empty() {
+        let initial_count = users.len();
+        users.retain(|user| !exclude_users.contains(&user.username));
+        let excluded_count = initial_count - users.len();
+        if excluded_count > 0 {
+            debug!("Excluded {} users: {:?}", excluded_count, exclude_users);
+        }
     }
     
     // Sort by UID for consistent ordering
     users.sort_by_key(|u| u.uid);
     
     Ok(users)
+}
+
+fn get_current_user() -> Result<UserInfo> {
+    #[cfg(unix)]
+    {
+        use nix::unistd;
+        
+        let uid = unistd::getuid();
+        let username = env::var("USER").or_else(|_| env::var("USERNAME"))?;
+        let home_dir = env::var("HOME").ok();
+        let shell = env::var("SHELL").ok();
+        
+        Ok(UserInfo {
+            username,
+            uid: uid.as_raw(),
+            shell,
+            home_dir,
+            disabled: Some(false),
+        })
+    }
+    
+    #[cfg(not(unix))]
+    {
+        let username = env::var("USER").or_else(|_| env::var("USERNAME"))?;
+        Ok(UserInfo {
+            username,
+            uid: 1000, // Default non-root UID
+            shell: Some("/bin/bash".to_string()),
+            home_dir: env::var("HOME").ok(),
+            disabled: Some(false),
+        })
+    }
 }
 
 #[cfg(unix)]
@@ -133,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_collect_users() {
-        let users = collect_users().unwrap();
+        let users = collect_users(&[], &[], false).unwrap();
         
         // Should have at least root user (unless root has nologin shell)
         // Check that all users have valid UIDs (0 or >= 1000)

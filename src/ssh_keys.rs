@@ -134,7 +134,7 @@ impl SshKey {
         }
     }
 
-    /// Check if this key matches a KeyMeister assignment
+    /// Check if this key matches a PubliKey assignment
     pub fn matches_assignment(&self, assignment: &KeyAssignment) -> bool {
         // Primary match: fingerprint
         if self.fingerprint == assignment.fingerprint {
@@ -155,7 +155,7 @@ pub struct SshKeyManager {
 impl SshKeyManager {
     pub fn new() -> Self {
         Self {
-            managed_marker: "# KeyMeister managed - do not edit manually".to_string(),
+            managed_marker: "# PubliKey managed - do not edit manually".to_string(),
         }
     }
 
@@ -299,13 +299,14 @@ impl SshKeyManager {
         Ok(keys)
     }
 
-    /// Sync SSH keys for all users based on KeyMeister assignments
+    /// Sync SSH keys for all users based on PubliKey assignments
     #[instrument(skip(self, users, assignments))]
     pub fn sync_ssh_keys(
         &self,
         users: &[UserInfo],
         assignments: &[KeyAssignment],
         dry_run: bool,
+        user_mode: bool,
     ) -> Result<KeySyncStats> {
         let mut stats = KeySyncStats {
             users_processed: 0,
@@ -438,7 +439,7 @@ impl SshKeyManager {
         Ok(stats)
     }
 
-    /// Convert KeyMeister assignment to SSH key
+    /// Convert PubliKey assignment to SSH key
     fn assignment_to_ssh_key(&self, assignment: &KeyAssignment) -> Result<SshKey> {
         SshKey::parse(&assignment.public_key)
     }
@@ -465,7 +466,7 @@ impl SshKeyManager {
         // Create file content
         let mut content = String::new();
         content.push_str(&format!("{}\n", self.managed_marker));
-        content.push_str("# This file is managed by KeyMeister Agent\n");
+        content.push_str("# This file is managed by PubliKey Agent\n");
         content.push_str("# Manual changes will be overwritten\n\n");
 
         for key in keys {

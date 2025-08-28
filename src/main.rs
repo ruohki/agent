@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     
     let args = Args::parse();
     
-    println!("KeyMeister Agent v{}", args.agent_version);
+    println!("PubliKey Agent v{}", args.agent_version);
     if let Some(ref endpoint) = args.endpoint {
         println!("Endpoint: {}", endpoint);
     }
@@ -30,11 +30,17 @@ async fn main() -> Result<()> {
         println!("DRY RUN MODE: No files will be modified");
     }
     
-    info!("Starting KeyMeister Agent v{}", args.agent_version);
+    info!("Starting PubliKey Agent v{}", args.agent_version);
     if let Some(ref endpoint) = args.endpoint {
         info!("Endpoint: {}", endpoint);
     }
     info!("Dry run mode: {}", args.dry_run);
+    
+    // Validate that include and exclude users are not both specified
+    if !args.include_users.is_empty() && !args.exclude_users.is_empty() {
+        eprintln!("Error: Cannot specify both --include-users and --exclude-users. Use only one.");
+        std::process::exit(1);
+    }
     
     // Handle update operations first
     if args.check_update || args.update {
@@ -85,7 +91,7 @@ async fn main() -> Result<()> {
     
     println!("Running report...");
     info!("Running report");
-    match run_report_cycle(&api_client, &args.agent_version, args.dry_run).await {
+    match run_report_cycle(&api_client, &args.agent_version, args.dry_run, &args.exclude_users, &args.include_users, args.user_mode).await {
         Ok(_) => {
             println!("Report completed successfully");
             info!("Report completed successfully");
@@ -94,7 +100,7 @@ async fn main() -> Result<()> {
             let error_msg = e.to_string();
             if error_msg.contains("Agent version") && error_msg.contains("too old") {
                 eprintln!("❌ {}", error_msg);
-                eprintln!("Please download and install the latest version of the KeyMeister agent.");
+                eprintln!("Please download and install the latest version of the PubliKey agent.");
             } else {
                 eprintln!("Error: {}", error_msg);
             }
@@ -105,14 +111,14 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-#[instrument(skip(api_client))]
-async fn run_report_cycle(api_client: &ApiClient, agent_version: &str, dry_run: bool) -> Result<()> {
+#[instrument(skip(api_client, exclude_users, include_users))]
+async fn run_report_cycle(api_client: &ApiClient, agent_version: &str, dry_run: bool, exclude_users: &[String], include_users: &[String], user_mode: bool) -> Result<()> {
     info!("Starting report cycle");
     
     // Collect system information
     let hostname = system::collect_hostname()?;
     let system_info = system::collect_system_info()?;
-    let users = users::collect_users()?;
+    let users = users::collect_users(exclude_users, include_users, user_mode)?;
     
     println!("Collected system data:");
     println!("  Hostname: {}", hostname);
@@ -155,7 +161,7 @@ async fn run_report_cycle(api_client: &ApiClient, agent_version: &str, dry_run: 
                 println!("Syncing SSH keys{}...", mode);
                 let ssh_manager = SshKeyManager::new();
                 
-                match ssh_manager.sync_ssh_keys(&users, assignments, dry_run) {
+                match ssh_manager.sync_ssh_keys(&users, assignments, dry_run, user_mode) {
                     Ok(stats) => {
                         let prefix = if dry_run { "Would have: " } else { "" };
                         println!("SSH key sync completed{}:", mode);
