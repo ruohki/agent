@@ -72,8 +72,6 @@ After=network.target
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/kmagent --token=$TOKEN --endpoint=$ENDPOINT
-User=nobody
-Group=nogroup
 EOF
 
 # Create systemd timer
